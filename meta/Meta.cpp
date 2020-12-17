@@ -7901,6 +7901,9 @@ void Meta::meta_sai_on_port_state_change_single(
             valid = true;
             break;
 
+       case SAI_OBJECT_TYPE_TUNNEL:
+           break;
+
         default:
 
             SWSS_LOG_ERROR("data.port_id %s has unexpected type: %s, expected PORT, BRIDGE_PORT or LAG",
