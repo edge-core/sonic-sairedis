@@ -1,5 +1,4 @@
 [submodule "SAI"]
 	path = SAI
-	url = https://github.com/opencomputeproject/SAI.git
-	ignore = dirty
-	branch = v1.3
+	url = https://github.com/edge-core/SAI.git
+	branch = ec202211
