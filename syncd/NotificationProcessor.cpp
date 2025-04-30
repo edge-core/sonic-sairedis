@@ -303,6 +303,52 @@ bool NotificationProcessor::contains_fdb_flush_event(
     return false;
 }
 
+bool NotificationProcessor::check_fdb_move_event_notification_data( _In_ sai_fdb_event_notification_data_t *fdb )
+{
+    //Set key
+    std::string strFdbEntry = sai_serialize_fdb_entry(fdb->fdb_entry);
+    std::string key = "ASIC_STATE:SAI_OBJECT_TYPE_FDB_ENTRY:"+strFdbEntry;
+    SWSS_LOG_DEBUG("keys: %s ", key.c_str() );
+
+    auto hash = m_client->getAttributesFromAsicKey(key);
+
+    if(hash.empty())
+    {
+        //mac not exist on asic db, change event to learn
+        fdb->event_type = SAI_FDB_EVENT_LEARNED;
+        SWSS_LOG_NOTICE("MAC didn't exist on Asic db.Set fdb move event to learn!");
+        return true;
+    }
+
+    for (auto &kv: hash)
+    {
+        const std::string& skey = kv.first;
+        const std::string& svalue = kv.second;
+        //check if port exist on asic db
+        if (skey == "SAI_FDB_ENTRY_ATTR_BRIDGE_PORT_ID")
+        {
+            for (uint32_t i = 0; i < fdb->attr_count; i++)
+            {
+                const sai_attribute_t& attr = fdb->attr[i];
+
+                auto meta = sai_metadata_get_attr_metadata(SAI_OBJECT_TYPE_FDB_ENTRY, attr.id);
+
+                if ( meta->attridname == skey )
+                {
+                    auto id = sai_serialize_object_id(attr.value.oid);
+                    SWSS_LOG_NOTICE("oid %s and key vale is  %s ", id.c_str(), svalue.c_str());
+                    if (svalue == id)
+                    {
+                        return false;
+                    }
+                }
+            }
+            break;
+        }
+    }
+    return true;
+}
+
 void NotificationProcessor::process_on_fdb_event(
         _In_ uint32_t count,
         _In_ sai_fdb_event_notification_data_t *data)
@@ -332,6 +378,15 @@ void NotificationProcessor::process_on_fdb_event(
         fdb->fdb_entry.bv_id = m_translator->translateRidToVid(fdb->fdb_entry.bv_id, fdb->fdb_entry.switch_id, true);
 
         m_translator->translateRidToVid(SAI_OBJECT_TYPE_FDB_ENTRY, fdb->fdb_entry.switch_id, fdb->attr_count, fdb->attr, true);
+
+        if (fdb->event_type ==  SAI_FDB_EVENT_MOVE )
+        {
+            if(!check_fdb_move_event_notification_data(fdb))
+            {
+                SWSS_LOG_NOTICE("skip move event because port is not change!");
+                continue;
+            }
+        }
 
         /*
          * Currently because of brcm bug, we need to install fdb entries in

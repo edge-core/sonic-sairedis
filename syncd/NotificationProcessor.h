@@ -61,6 +61,9 @@ namespace syncd
             bool check_nat_event_notification_data(
                     _In_ const sai_nat_event_notification_data_t& data);
 
+            bool check_fdb_move_event_notification_data(
+                    _In_ sai_fdb_event_notification_data_t *fdb );
+
             bool contains_fdb_flush_event(
                     _In_ uint32_t count,
                     _In_ const sai_fdb_event_notification_data_t *data);
