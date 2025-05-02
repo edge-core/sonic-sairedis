@@ -371,6 +371,12 @@ void NotificationProcessor::process_on_fdb_event(
             continue;
         }
 
+        if (fdb->event_type == SAI_FDB_EVENT_MOVE_STORM_RELEASED)
+        {
+            //Skip to notify unsupported fdb event
+            continue;
+        }
+
         SWSS_LOG_DEBUG("fdb %u: type: %d", i, fdb->event_type);
 
         fdb->fdb_entry.switch_id = m_translator->translateRidToVid(fdb->fdb_entry.switch_id, SAI_NULL_OBJECT_ID);
