@@ -312,11 +312,11 @@ bool NotificationProcessor::check_fdb_move_event_notification_data( _In_ sai_fdb
 
     auto hash = m_client->getAttributesFromAsicKey(key);
 
-    if(hash.empty())
+    if (hash.empty())
     {
         //mac not exist on asic db, change event to learn
         fdb->event_type = SAI_FDB_EVENT_LEARNED;
-        SWSS_LOG_NOTICE("MAC didn't exist on Asic db.Set fdb move event to learn!");
+        SWSS_LOG_NOTICE("MAC doesn't exist in ASIC_DB. Set fdb move event to learn!");
         return true;
     }
 
@@ -333,10 +333,10 @@ bool NotificationProcessor::check_fdb_move_event_notification_data( _In_ sai_fdb
 
                 auto meta = sai_metadata_get_attr_metadata(SAI_OBJECT_TYPE_FDB_ENTRY, attr.id);
 
-                if ( meta->attridname == skey )
+                if (meta->attridname == skey)
                 {
                     auto id = sai_serialize_object_id(attr.value.oid);
-                    SWSS_LOG_NOTICE("oid %s and key vale is  %s ", id.c_str(), svalue.c_str());
+                    SWSS_LOG_INFO("new port: %s, origin port: %s", id.c_str(), svalue.c_str());
                     if (svalue == id)
                     {
                         return false;
@@ -357,15 +357,13 @@ void NotificationProcessor::process_on_fdb_event(
 
     SWSS_LOG_INFO("fdb event count: %u", count);
 
-    bool sendntf = true;
+    std::vector<sai_fdb_event_notification_data_t> filteredData;
 
     for (uint32_t i = 0; i < count; i++)
     {
         sai_fdb_event_notification_data_t *fdb = &data[i];
 
-        sendntf &= check_fdb_event_notification_data(*fdb);
-
-        if (!sendntf)
+        if (!check_fdb_event_notification_data(*fdb))
         {
             SWSS_LOG_ERROR("invalid OIDs in fdb notifications, NOT translating and NOT storing in ASIC DB");
             continue;
@@ -381,9 +379,9 @@ void NotificationProcessor::process_on_fdb_event(
 
         if (fdb->event_type ==  SAI_FDB_EVENT_MOVE )
         {
-            if(!check_fdb_move_event_notification_data(fdb))
+            if (!check_fdb_move_event_notification_data(fdb))
             {
-                SWSS_LOG_NOTICE("skip move event because port is not change!");
+                SWSS_LOG_INFO("skip move event because port is not change!");
                 continue;
             }
         }
@@ -395,17 +393,15 @@ void NotificationProcessor::process_on_fdb_event(
          */
 
         redisPutFdbEntryToAsicView(fdb);
+
+        filteredData.push_back(*fdb);
     }
 
-    if (sendntf)
+    if (!filteredData.empty())
     {
-        std::string s = sai_serialize_fdb_event_ntf(count, data);
+        std::string s = sai_serialize_fdb_event_ntf(static_cast<uint32_t>(filteredData.size()), filteredData.data());
 
         sendNotification(SAI_SWITCH_NOTIFICATION_NAME_FDB_EVENT, s);
-    }
-    else
-    {
-        SWSS_LOG_ERROR("FDB notification was not sent since it contain invalid OIDs, bug?");
     }
 }
 
